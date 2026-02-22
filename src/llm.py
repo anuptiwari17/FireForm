@@ -1,28 +1,22 @@
 import json
 import os
 import requests
-from json_manager import JsonManager
-from input_manager import InputManager
-from pdfrw import PdfReader, PdfWriter
 
-
-
-class textToJSON():
-    def __init__(self, transcript_text, target_fields, json={}):
-        self.__transcript_text = transcript_text # str
-        self.__target_fields = target_fields # List, contains the template field.
-        self.__json = json # dictionary
-        self.type_check_all()
-        self.main_loop()
-
+class LLM():
+    def __init__(self, transcript_text=None, target_fields=None, json=None):
+        if json is None:
+            json = {}
+        self._transcript_text = transcript_text # str
+        self._target_fields = target_fields # List, contains the template field.
+        self._json = json # dictionary
     
     def type_check_all(self):
-        if type(self.__transcript_text) != str:
-            raise TypeError(f"ERROR in textToJSON() ->\
-                Transcript must be text. Input:\n\ttranscript_text: {self.__transcript_text}")
-        elif type(self.__target_fields) != list:  
-            raise TypeError(f"ERROR in textToJSON() ->\
-                Target fields must be a list. Input:\n\ttarget_fields: {self.__target_fields}")
+        if type(self._transcript_text) != str:
+            raise TypeError(f"ERROR in LLM() attributes ->\
+                Transcript must be text. Input:\n\ttranscript_text: {self._transcript_text}")
+        elif type(self._target_fields) != list:  
+            raise TypeError(f"ERROR in LLM() attributes ->\
+                Target fields must be a list. Input:\n\ttarget_fields: {self._target_fields}")
 
    
     def build_prompt(self, current_field):
@@ -41,13 +35,14 @@ class textToJSON():
             DATA:
             Target JSON field to find in text: {current_field}
             
-            TEXT: {self.__transcript_text}
+            TEXT: {self._transcript_text}
             """
 
         return prompt
 
-    def main_loop(self): #FUTURE -> Refactor this to its own class
-        for field in self.__target_fields:
+    def main_loop(self):
+        self.type_check_all()
+        for field in self._target_fields:
             prompt = self.build_prompt(field)
             # print(prompt)
             # ollama_url = "http://localhost:11434/api/generate"
@@ -60,20 +55,30 @@ class textToJSON():
                 "stream": False # don't really know why --> look into this later.
             }
 
-            response = requests.post(ollama_url, json=payload)
+            try:
+                response = requests.post(ollama_url, json=payload)
+                response.raise_for_status()
+            except requests.exceptions.ConnectionError:
+                raise ConnectionError(
+                    f"Could not connect to Ollama at {ollama_url}. "
+                    "Please ensure Ollama is running and accessible."
+                )
+            except requests.exceptions.HTTPError as e:
+                raise RuntimeError(f"Ollama returned an error: {e}")
 
             # parse response
             json_data = response.json()
             parsed_response = json_data['response']
             # print(parsed_response)
             self.add_response_to_json(field, parsed_response)
+
             
         print("----------------------------------")
         print("\t[LOG] Resulting JSON created from the input text:")
-        print(json.dumps(self.__json, indent=2))
+        print(json.dumps(self._json, indent=2))
         print("--------- extracted data ---------")
 
-        return None
+        return self
 
     def add_response_to_json(self, field, value):
         """ 
@@ -92,10 +97,10 @@ class textToJSON():
             plural = True
 
 
-        if field in self.__json.keys():
-            self.__json[field].append(parsed_value)
+        if field in self._json.keys():
+            self._json[field].append(parsed_value)
         else: 
-            self.__json[field] = parsed_value
+            self._json[field] = parsed_value
                 
         return
 
@@ -124,51 +129,4 @@ class textToJSON():
         
 
     def get_data(self):
-        return self.__json
-
-class Fill():
-    def __init__(self):
-        pass
-    
-    def fill_form(user_input: str, definitions: list, pdf_form: str):
-        """
-        Fill a PDF form with values from user_input using testToJSON.
-        Fields are filled in the visual order (top-to-bottom, left-to-right).
-        """
-
-        output_pdf = pdf_form[:-4] + "_filled.pdf"
-
-        # Generate dictionary of answers from your original function 
-        t2j = textToJSON(user_input, definitions)
-        textbox_answers = t2j.get_data()  # This is a dictionary
-
-        answers_list = list(textbox_answers.values())
-
-        # Read PDF 
-        pdf = PdfReader(pdf_form)
-
-        # Loop through pages 
-        for page in pdf.pages:
-            if page.Annots:
-                sorted_annots = sorted(
-                    page.Annots,
-                    key=lambda a: (-float(a.Rect[1]), float(a.Rect[0]))
-                )
-
-                i = 0
-                for annot in sorted_annots:
-                    if annot.Subtype == '/Widget' and annot.T:
-                        field_name = annot.T[1:-1]
-                        
-                        if i < len(answers_list):
-                            annot.V = f'{answers_list[i]}'
-                            annot.AP = None
-                            i += 1
-                        else:
-                            # Stop if we run out of answers
-                            break 
-
-        PdfWriter().write(output_pdf, pdf)
-        
-        # Your main.py expects this function to return the path
-        return output_pdf
+        return self._json
