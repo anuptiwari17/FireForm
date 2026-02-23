@@ -44,5 +44,5 @@ If successful, you will see:
 > The database file is excluded from Git to avoid conflicts between developers.
 
 To visualize the database:
-1. Install the **SQLite Viewer** extension in VS Code.
+1. Install the **SQLite3 Editor** extension in VS Code.
 2. Open the `.db` file directly.
