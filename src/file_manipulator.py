@@ -1,22 +1,26 @@
 import os
-from filler import Filler
-from llm import LLM
+from src.filler import Filler
+from src.llm import LLM
+from commonforms import prepare_form 
 
 class FileManipulator:
     def __init__(self):
         self.filler = Filler()
         self.llm = LLM()
 
-    def create_template(self):
-        pass    
-
-    def fill_form(self, user_input: str, definitions: list, pdf_form_path: str):
+    def create_template(self, pdf_path: str):
         """
-        This function is called by the frontend server.
+        By using commonforms, we create an editable .pdf template and we store it.
+        """
+        template_path = pdf_path[:-4] + "_template.pdf"
+        prepare_form(pdf_path, template_path)   
+        return template_path 
+
+    def fill_form(self, user_input: str, fields: list, pdf_form_path: str):
+        """
         It receives the raw data, runs the PDF filling logic,
         and returns the path to the newly created file.
         """
-        
         print("[1] Received request from frontend.")
         print(f"[2] PDF template path: {pdf_form_path}")
         
@@ -26,7 +30,7 @@ class FileManipulator:
 
         print("[3] Starting extraction and PDF filling process...")
         try:
-            self.llm._target_fields = definitions
+            self.llm._target_fields = fields
             self.llm._transcript_text = user_input
             output_name = self.filler.fill_form(
                 pdf_form=pdf_form_path,
