@@ -1,4 +1,4 @@
-# Database Management Guide
+# Database and API Management Guide
 
 This guide explains how to set up, initialize, and manage the FireForm database.
 
